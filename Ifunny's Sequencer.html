@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ifunny's Sequencer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #waveform-container {
+            height: 100px;
+            background-color: lightgray;
+            position: relative;
+        }
+        .frame {
+            width: 10px;
+            height: 20px;
+            background-color: blue;
+            cursor: pointer;
+            position: absolute;
+            bottom: 0;
+        }
+        #progress-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-left: 2px solid blue;
+            transform: translate(-50%, 0%);
+        }
+        input[type=text], button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.1/wavesurfer.min.js"></script>
+<body>
+<h1>Ifunny's Sequencer</h1>
+<input type="file" id="audioFileInput"/>
+<div id="waveform-container"></div>
+<div id="controls">
+    <button onclick="playAudio()">Play</button>
+    <button onclick="togglePause()">Pause</button>
+    <button onclick="stopAudio()">Stop</button>
+</div>
+<div id="properties-bar">
+    Name: <input type="text" id="frameNameInput"/><br/>
+    Time: <span id="frameTimeDisplay">--</span>s<br/>
+    <button onclick="addFrame()">Add Frame</button>
+    <button onclick="saveSequences()">Sequence</button>
+</div>
+
+<script>
+const wavesurfer = WaveSurfer.create({
+    container: '#waveform-container',
+    waveColor: 'violet',
+    progressColor: 'purple',
+    cursorWidth: 1,
+    backend: 'WebAudio'
+});
+
+let frames = [];
+let isPlaying = false;
+let progressLine = null;
+
+document.getElementById('audioFileInput').onchange = async function(event) {
+    const audioBlob = event.target.files[0];
+    await wavesurfer.load(audioBlob);
+    wavesurfer.play(); // Start playing automatically
+    setTimeout(togglePause, 100); // Pause almost instantly after loading
+};
+
+wavesurfer.on('ready', () => {
+    console.log("Waveform loaded successfully!");
+});
+
+// Creating and managing frame markers
+function addFrame() {
+    let frameTime = wavesurfer.getCurrentTime();
+    let newFrameDiv = document.createElement('div');
+    newFrameDiv.className = 'frame';
+    newFrameDiv.style.left = `${(frameTime / wavesurfer.getDuration()) * 100}%`;
+    
+    // Adding draggable behavior
+    newFrameDiv.It seems there might be issues due to running the HTML locally without a server environment. Browsers often restrict certain functionalities such as reading local files directly unless served over HTTP(S). To resolve these problems, follow these steps:
+
+---
