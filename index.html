@@ -31,10 +31,10 @@
         }
 
         
+
 .container {
-    position: relative; /* establishes the reference point */
-    height: 400px;
-    border: 1px solid #ccc;
+    position: relative;
+    height: 300px;
 }
 
 .custom-position-link {
@@ -42,7 +42,9 @@
     top: 100px;
     left: 200px;
     color: blue;
-    font-size: 16px;
+    padding: 0; /* Remove any extra padding */
+    margin: 0; /* Remove extra margin */
+    display: inline; /* Link takes only space needed by text */
 }
         
         a.button-link:hover {
