@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>chatroom</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #000000; color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex; flex-direction: column; height: 100vh; padding: 20px; overflow: hidden; position: relative;
+            text-shadow: -0.8px 0px 0px rgba(0, 0, 255, 0.5), 0.8px 0px 0px rgba(255, 0, 0, 0.5);
+        }
+        body::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(255, 255, 255, 0.04) 50%);
+            background-size: 100% 2.5px; z-index: 9999; pointer-events: none;
+        }
+        .vhs-line {
+            position: absolute; left: 0; width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(1px) skewX(-20deg) contrast(150%) brightness(1.2);
+            -webkit-backdrop-filter: blur(1px) skewX(-20deg) contrast(150%) brightness(1.2);
+            animation: vhs-roll 4s linear infinite; z-index: 9995; pointer-events: none;
+        }
+        .vhs-line-fast {
+            position: absolute; left: 0; width: 100%; height: 3px; background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: skewX(15deg) invert(10%); -webkit-backdrop-filter: skewX(15deg) invert(10%);
+            animation: vhs-roll 2.3s linear infinite; animation-delay: 1s; z-index: 9995; pointer-events: none;
+        }
+        @keyframes vhs-roll { 0% { top: -5%; } 100% { top: 105%; } }
+        
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000000; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .login-box { border: 1px solid #ffffff; padding: 40px; background: #000000; text-align: center; max-width: 400px; width: 90%; }
+        .login-box h2 { font-size: 22px; margin-bottom: 25px; letter-spacing: 3px; }
+        .login-box input { width: 100%; background: #000000; border: 1px solid #ffffff; color: #ffffff; padding: 12px; margin-bottom: 20px; font-family: inherit; font-size: 16px; outline: none; text-align: center; }
+        .login-box button { width: 100%; background: #ffffff; color: #000000; border: none; padding: 12px; font-family: inherit; font-weight: bold; font-size: 16px; cursor: pointer; }
+        
+        #admin-password-container { display: none; }
+        #chat-container { flex: 1; border: 1px solid #ffffff; padding: 15px; overflow-y: auto; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; background: #000000; }
+        .message { line-height: 1.4; word-break: break-word; }
+        .system-text { color: #ffffff; opacity: 0.5; font-style: italic; }
+        #input-container { display: flex; gap: 10px; }
+        #msg-input { flex: 1; background: #000000; border: 1px solid #ffffff; color: #ffffff; padding: 12px; font-size: 16px; outline: none; font-family: inherit; }
+        #send-btn { background: #ffffff; color: #000000; border: none; padding: 0 25px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit; }
+    </style>
+</head>
+<body>
+
+    <div class="vhs-line"></div>
+    <div class="vhs-line-fast"></div>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>Welcome</h2>
+            <input type="text" id="username-input" placeholder="Enter your handle..." maxlength="20" autocomplete="off">
+            <div id="admin-password-container">
+                <input type="password" id="admin-password-input" placeholder="Enter Admin Password..." autocomplete="off">
+            </div>
+            <button id="login-btn">ENTER ROOM</button>
+        </div>
+    </div>
+
+    <div id="chat-container">
+        <div class="message system-text">Awaiting network node encryption initialization...</div>
+    </div>
+
+    <div id="input-container">
+        <input type="text" id="msg-input" placeholder="Type your message..." autocomplete="off" disabled>
+        <button id="send-btn" disabled>Send</button>
+    </div>
+
+    <script>
+        let username = "Anonymous";
+        let audioCtx;
+        
+        const ADMIN_PASSWORD = "con1struct1_XX";
+
+        const loginOverlay = document.getElementById('login-overlay');
+        const usernameInput = document.getElementById('username-input');
+        const adminPasswordContainer = document.getElementById('admin-password-container');
+        const adminPasswordInput = document.getElementById('admin-password-input');
+        const loginBtn = document.getElementById('login-btn');
+        const chatContainer = document.getElementById('chat-container');
+        const msgInput = document.getElementById('msg-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        function appendLog(text, isSystem = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = isSystem ? 'message system-text' : 'message user-text';
+            msgDiv.textContent = text;
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Защитная логика проверки имени в реальном времени
+        usernameInput.addEventListener('input', () => {
+            if (usernameInput.value.trim() === "Con1") {
+                adminPasswordContainer.style.display = "block";
+            } else {
+                adminPasswordContainer.style.display = "none";
+                adminPasswordInput.value = "";
+            }
+        });
+
+        function handleLogin() {
+            const chosenName = usernameInput.value.trim();
+            if (!chosenName) return;
+            
+            if (chosenName === "Con1" && adminPasswordInput.value !== ADMIN_PASSWORD) {
+                alert("Access Denied: Invalid Admin Password.");
+                return;
+            }
+            
+            username = chosenName;
+            loginOverlay.style.display = 'none';
+            startAudioAndServer();
+        }
+
+        loginBtn.addEventListener('click', handleLogin);
+        window.addEventListener('keydown', (e) => { if (e.key === 'Enter' && loginOverlay.style.display !== 'none') handleLogin(); });
+
+        function startAudio() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator(), gainNode = audioCtx.createGain(), filter = audioCtx.createBiquadFilter();
+                oscillator.type = 'sawtooth'; oscillator.frequency.setValueAtTime(40, audioCtx.currentTime); // Ghost Hz (40 Гц)
+                filter.type = 'lowpass'; filter.frequency.setValueAtTime(105, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.06, audioCtx.currentTime); // Тяжелый громкий гул
+                oscillator.connect(filter); filter.connect(gainNode); gainNode.connect(audioCtx.destination); oscillator.start();
+            } catch (e) {}
+        }
+
+        function startAudioAndServer() {
+            startAudio();
+            initLocalStorageSync();
+        }
+
+        // Аппаратная синхронизация через память браузера без серверов
+        function initLocalStorageSync() {
+            chatContainer.innerHTML = "";
+            appendLog("Uplink active. Local loopback storage synchronized.", true);
+            msgInput.disabled = false; sendBtn.disabled = false; msgInput.focus();
+
+            // Чистим старые сообщения из сессии при холодном старте первой вкладки
+            if (!sessionStorage.getItem('chat_active')) {
+                localStorage.removeItem('vhs_chat_stream');
+                sessionStorage.setItem('chat_active', 'true');
+            }
+
+            // Слушаем изменения в памяти (когда пишет другая вкладка)
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'vhs_chat_stream' && e.newValue) {
+                    const data = JSON.parse(e.newValue);
+                    appendLog(data.text, data.isSystem);
+                }
+            });
+
+            broadcastRawMessage(`--> ${username} has joined the room.`, true);
+        }
+
+        function broadcastRawMessage(rawString, isSystemStatus = false) {
+            const payload = { text: rawString, isSystem: isSystemStatus, timestamp: Date.now() };
+            
+            // Записываем в память — это мгновенно триггерит событие во всех остальных вкладках
+            localStorage.setItem('vhs_chat_stream', JSON.stringify(payload));
+            
+            // Отрендерим сообщение у себя на экране
+            appendLog(rawString, isSystemStatus);
+        }
+
+        function sendMessage() {
+            const text = msgInput.value.trim();
+            if (!text) return;
+            broadcastRawMessage(`[${username}]: ${text}`, false);
+            msgInput.value = '';
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        
+        window.addEventListener('beforeunload', () => {
+            broadcastRawMessage(`<-- ${username} has left the room.`, true);
+        });
+    </script>
+</body>
+</html>
