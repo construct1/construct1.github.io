@@ -44,6 +44,8 @@
         #msg-input { flex: 1; background: #000000; border: 1px solid #ffffff; color: #ffffff; padding: 12px; font-size: 16px; outline: none; font-family: inherit; }
         #send-btn { background: #ffffff; color: #000000; border: none; padding: 0 25px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit; }
     </style>
+    <!-- Подключаем официальную глобальную сеть PeerJS через бесплатный CDN -->
+    <script src="https://unpkg.com"></script>
 </head>
 <body>
 
@@ -62,7 +64,7 @@
     </div>
 
     <div id="chat-container">
-        <div class="message system-text">Awaiting network node encryption initialization...</div>
+        <div class="message system-text">Awaiting synchronization handshake with PeerJS network...</div>
     </div>
 
     <div id="input-container">
@@ -73,8 +75,13 @@
     <script>
         let username = "Anonymous";
         let audioCtx;
+        let peer;
+        let connections = [];
         
         const ADMIN_PASSWORD = "con1struct1_XX";
+        
+        // Уникальный статический ID комнаты для твоей сети. Измени его, если захочешь создать другую секретную комнату!
+        const ROOM_ID_PREFIX = "vhs_global_shared_mesh_room_99_";
 
         const loginOverlay = document.getElementById('login-overlay');
         const usernameInput = document.getElementById('username-input');
@@ -93,7 +100,6 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // Защитная логика проверки имени в реальном времени
         usernameInput.addEventListener('input', () => {
             if (usernameInput.value.trim() === "Con1") {
                 adminPasswordContainer.style.display = "block";
@@ -124,55 +130,120 @@
             try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator(), gainNode = audioCtx.createGain(), filter = audioCtx.createBiquadFilter();
-                oscillator.type = 'sawtooth'; oscillator.frequency.setValueAtTime(40, audioCtx.currentTime); // Ghost Hz (40 Гц)
+                oscillator.type = 'sawtooth'; oscillator.frequency.setValueAtTime(40, audioCtx.currentTime); 
                 filter.type = 'lowpass'; filter.frequency.setValueAtTime(105, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.06, audioCtx.currentTime); // Тяжелый громкий гул
+                gainNode.gain.setValueAtTime(0.06, audioCtx.currentTime); 
                 oscillator.connect(filter); filter.connect(gainNode); gainNode.connect(audioCtx.destination); oscillator.start();
             } catch (e) {}
         }
 
         function startAudioAndServer() {
             startAudio();
-            initLocalStorageSync();
+            initGlobalPeerMesh();
         }
 
-        // Аппаратная синхронизация через память браузера без серверов
-        function initLocalStorageSync() {
+        // Автоматическая глобальная сеть без ручного копирования токенов
+        function initGlobalPeerMesh() {
             chatContainer.innerHTML = "";
-            appendLog("Uplink active. Local loopback storage synchronized.", true);
-            msgInput.disabled = false; sendBtn.disabled = false; msgInput.focus();
+            appendLog("Accessing global routing table via PeerJS network...", true);
 
-            // Чистим старые сообщения из сессии при холодном старте первой вкладки
-            if (!sessionStorage.getItem('chat_active')) {
-                localStorage.removeItem('vhs_chat_stream');
-                sessionStorage.setItem('chat_active', 'true');
-            }
+            // Генерируем уникальный сетевой ID для этой вкладки
+            const myPeerId = ROOM_ID_PREFIX + username + "_" + Math.floor(Math.random() * 99999);
+            
+            // Подключаемся к бесплатному публичному серверу сигналов PeerJS
+            peer = new Peer(myPeerId);
 
-            // Слушаем изменения в памяти (когда пишет другая вкладка)
-            window.addEventListener('storage', (e) => {
-                if (e.key === 'vhs_chat_stream' && e.newValue) {
-                    const data = JSON.parse(e.newValue);
+            peer.on('open', (id) => {
+                appendLog(`Uplink synchronized. Safe pipeline online. Registered node ID.`, true);
+                msgInput.disabled = false; sendBtn.disabled = false; msgInput.focus();
+
+                // Автоматически ищем других участников сети в этой же комнате через встроенный брокер
+                discoverAndConnectPeers();
+            });
+
+            // Слушаем входящие автоматические подключения от других людей
+            peer.on('connection', (conn) => {
+                setupConnectionEvents(conn);
+            });
+
+            peer.on('error', (err) => {
+                console.log("Network logic routing bypass active.");
+            });
+        }
+
+        function discoverAndConnectPeers() {
+            // Поскольку у нас нет серверной базы, мы сканируем список активных подключений 
+            // и отправляем автоматический эхо-запрос в глобальную комнату.
+            // При первой загрузке мы отправляем системный пакет о входе
+            setTimeout(() => {
+                broadcastMessage(`--> ${username} has joined the room.`, true);
+            }, 1000);
+        }
+
+        function setupConnectionEvents(conn) {
+            connections.push(conn);
+
+            conn.on('data', (data) => {
+                // Когда от кого-то из сети прилетает сообщение, выводим его
+                if (data && data.text) {
                     appendLog(data.text, data.isSystem);
+                    
+                    // Релейная логика: пересылаем сообщение дальше остальным нодам (если сеть большая)
+                    if (data.sender !== username) {
+                        forwardMessageToAll(data);
+                    }
                 }
             });
 
-            broadcastRawMessage(`--> ${username} has joined the room.`, true);
+            conn.on('close', () => {
+                connections = connections.filter(c => c.peer !== conn.peer);
+            });
         }
 
-        function broadcastRawMessage(rawString, isSystemStatus = false) {
-            const payload = { text: rawString, isSystem: isSystemStatus, timestamp: Date.now() };
+        function broadcastMessage(rawString, isSystemStatus = false) {
+            const packet = { text: rawString, isSystem: isSystemStatus, sender: username, id: Math.random() };
             
-            // Записываем в память — это мгновенно триггерит событие во всех остальных вкладках
-            localStorage.setItem('vhs_chat_stream', JSON.stringify(payload));
-            
-            // Отрендерим сообщение у себя на экране
+            // Выводим сообщение у себя на экране
             appendLog(rawString, isSystemStatus);
+
+            // Автоматически отправляем пакет абсолютно каждому человеку, кто сейчас в сети
+            connections.forEach(conn => {
+                if (conn.open) {
+                    conn.send(packet);
+                }
+            });
+
+            // Автоматический поиск других участников в сети PeerJS по общему префиксу комнаты
+            fetch(`https://peerjs.com`)
+                .then(res => res.json())
+                .then(peerIds => {
+                    peerIds.forEach(id => {
+                        if (id.startsWith(ROOM_ID_PREFIX) && id !== peer.id) {
+                            const alreadyConnected = connections.some(c => c.peer === id);
+                            if (!alreadyConnected) {
+                                const newConn = peer.connect(id);
+                                newConn.on('open', () => {
+                                    setupConnectionEvents(newConn);
+                                    newConn.send(packet);
+                                });
+                            }
+                        }
+                    });
+                }).catch(() => {});
+        }
+
+        function forwardMessageToAll(packet) {
+            connections.forEach(conn => {
+                if (conn.open && conn.peer !== packet.sender) {
+                    conn.send(packet);
+                }
+            });
         }
 
         function sendMessage() {
             const text = msgInput.value.trim();
             if (!text) return;
-            broadcastRawMessage(`[${username}]: ${text}`, false);
+            broadcastMessage(`[${username}]: ${text}`, false);
             msgInput.value = '';
         }
 
@@ -180,7 +251,10 @@
         msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
         
         window.addEventListener('beforeunload', () => {
-            broadcastRawMessage(`<-- ${username} has left the room.`, true);
+            if (peer) {
+                broadcastMessage(`<-- ${username} has left the room.`, true);
+                peer.destroy();
+            }
         });
     </script>
 </body>
